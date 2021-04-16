@@ -36,7 +36,7 @@ type NestedControllerManagerStatus struct {
 }
 
 //+kubebuilder:object:root=true
-//+kubebuilder:resource:scope=Namespaced,path=nestedapiservers,shortName=nkcm
+//+kubebuilder:resource:scope=Namespaced,path=nestedcontrollermanager,shortName=nkcm
 //+kubebuilder:categories=capi,capn
 //+kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
