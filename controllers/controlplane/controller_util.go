@@ -19,6 +19,7 @@ package controlplane
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -137,6 +138,8 @@ func genServiceObject(ncMeta metav1.ObjectMeta,
 			"for the nestedetcd Service: %v", err)
 		return
 	}
+	log.Info("-------", "ncMeta", ncMeta)
+	log.Info("+++++++", "svcStr", svcStr)
 	rawSvcObj, err := yamlToObject([]byte(svcStr))
 	if err != nil {
 		retErr = fmt.Errorf("fail to convert yaml file to Serivce: %v", err)
@@ -170,7 +173,7 @@ func genStatefulSetObject(
 		case clusterv1.Etcd:
 			templateURL = defaultEtcdStatefulSetURL
 		case clusterv1.ControllerManager:
-			panic("NOT IMPLEMENT YET")
+			templateURL = defaultKCMStatefulSetURL
 		default:
 			panic("Unreachable")
 		}
@@ -221,6 +224,7 @@ func genStatefulSetObject(
 			"for the %s StatefulSet: %v", ncKind, err)
 		return
 	}
+	log.Info("++++++++++++++++", "sts", stsStr)
 	// 3 deserialize the yaml string to the StatefulSet object
 	rawObj, err := yamlToObject([]byte(stsStr))
 	if err != nil {
@@ -313,7 +317,12 @@ func substituteTemplate(context interface{}, tmpl string) (string, error) {
 
 // fetchTemplate fetches the component template through the tmplateURL
 func fetchTemplate(templateURL string) (string, error) {
-	rep, err := http.Get(templateURL)
+	// TODO mount host CA to manager pods
+	client := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}}
+
+	rep, err := client.Get(templateURL)
 	if err != nil {
 		return "", err
 	}
