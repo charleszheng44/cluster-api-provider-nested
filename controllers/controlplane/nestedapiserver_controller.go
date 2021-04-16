@@ -106,7 +106,7 @@ func (r *NestedAPIServerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// Mark the NestedAPIServer as Ready if the StatefulSet is ready
 	if nkasSts.Status.ReadyReplicas == nkasSts.Status.Replicas {
 		log.Info("The NestedAPIServer StatefulSet is ready")
-		if IsComponentReady(nkas.Status.CommonStatus) {
+		if !IsComponentReady(nkas.Status.CommonStatus) {
 			// As the NestedAPIServer StatefulSet is ready, update
 			// NestedAPIServer status
 			nkas.Status.Phase = string(clusterv1.Ready)

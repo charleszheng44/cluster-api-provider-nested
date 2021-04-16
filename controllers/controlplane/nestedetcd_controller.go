@@ -105,7 +105,7 @@ func (r *NestedEtcdReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	if netcdSts.Status.ReadyReplicas == netcdSts.Status.Replicas {
 		log.Info("The NestedEtcd StatefulSet is ready")
-		if IsComponentReady(netcd.Status.CommonStatus) {
+		if !IsComponentReady(netcd.Status.CommonStatus) {
 			// As the NestedEtcd StatefulSet is ready, update NestedEtcd status
 			ip, err := getNestedEtcdSvcClusterIP(ctx, r.Client, netcd)
 			if err != nil {

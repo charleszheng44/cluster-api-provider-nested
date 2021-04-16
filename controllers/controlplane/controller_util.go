@@ -70,6 +70,11 @@ func createNestedComponentSts(ctx context.Context,
 			if err != nil {
 				return fmt.Errorf("fail to generate the Service object: %v", err)
 			}
+			if err := cli.Create(ctx, &ncSvc); err != nil {
+				return err
+			}
+			log.Info("successfully create the service for the StatefulSet",
+				"component", ncKind)
 		}
 
 	} else {
@@ -79,12 +84,6 @@ func createNestedComponentSts(ctx context.Context,
 	or := metav1.NewControllerRef(&ncMeta,
 		clusterv1.GroupVersion.WithKind(string(ncKind)))
 	ncSts.SetOwnerReferences([]metav1.OwnerReference{*or})
-
-	if err := cli.Create(ctx, &ncSvc); err != nil {
-		return err
-	}
-	log.Info("successfully create the service for the StatefulSet",
-		"component", ncKind)
 
 	// 4. create the NestedComponent StatefulSet
 	return cli.Create(ctx, &ncSts)
@@ -102,8 +101,6 @@ func genServiceObject(ncMeta metav1.ObjectMeta,
 			templateURL = defaultKASServiceURL
 		case clusterv1.Etcd:
 			templateURL = defaultEtcdServiceURL
-		case clusterv1.ControllerManager:
-			panic("NOT IMPLEMENT YET")
 		default:
 			panic("Unreachable")
 		}
@@ -120,14 +117,15 @@ func genServiceObject(ncMeta metav1.ObjectMeta,
 	var templateCtx map[string]string
 	switch ncKind {
 	case clusterv1.APIServer:
-		panic("NOT IMPLEMENT YET")
+		templateCtx = map[string]string{
+			"nestedAPIServerName":      ncMeta.GetName(),
+			"nestedAPIServerNamespace": ncMeta.GetNamespace(),
+		}
 	case clusterv1.Etcd:
 		templateCtx = map[string]string{
 			"nestedEtcdName":      ncMeta.GetName(),
 			"nestedEtcdNamespace": ncMeta.GetNamespace(),
 		}
-	case clusterv1.ControllerManager:
-		panic("NOT IMPLEMENT YET")
 	default:
 		panic("Unreachable")
 	}
@@ -138,8 +136,6 @@ func genServiceObject(ncMeta metav1.ObjectMeta,
 			"for the nestedetcd Service: %v", err)
 		return
 	}
-	log.Info("-------", "ncMeta", ncMeta)
-	log.Info("+++++++", "svcStr", svcStr)
 	rawSvcObj, err := yamlToObject([]byte(svcStr))
 	if err != nil {
 		retErr = fmt.Errorf("fail to convert yaml file to Serivce: %v", err)
@@ -224,7 +220,6 @@ func genStatefulSetObject(
 			"for the %s StatefulSet: %v", ncKind, err)
 		return
 	}
-	log.Info("++++++++++++++++", "sts", stsStr)
 	// 3 deserialize the yaml string to the StatefulSet object
 	rawObj, err := yamlToObject([]byte(stsStr))
 	if err != nil {

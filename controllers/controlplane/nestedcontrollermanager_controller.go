@@ -106,7 +106,7 @@ func (r *NestedControllerManagerReconciler) Reconcile(ctx context.Context, req c
 	// Mark the NestedControllerManager as Ready if the StatefulSet is ready
 	if nkcmSts.Status.ReadyReplicas == nkcmSts.Status.Replicas {
 		log.Info("The NestedControllerManager StatefulSet is ready")
-		if IsComponentReady(nkcm.Status.CommonStatus) {
+		if !IsComponentReady(nkcm.Status.CommonStatus) {
 			// As the NestedControllerManager StatefulSet is ready, update
 			// NestedControllerManager status
 			nkcm.Status.Phase = string(clusterv1.Ready)
