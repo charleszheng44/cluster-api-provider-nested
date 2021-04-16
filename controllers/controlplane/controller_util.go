@@ -207,7 +207,11 @@ func genStatefulSetObject(
 			"nestedEtcdName":           etcdName,
 		}
 	case clusterv1.ControllerManager:
-		panic("NOT IMPLEMENT YET")
+		templateCtx = map[string]string{
+			"nestedControllerManagerName":      ncMeta.GetName(),
+			"nestedControllerManagerNamespace": ncMeta.GetNamespace(),
+			"nestedControlPlaneName":           clusterName,
+		}
 	default:
 		panic("Unreachable")
 	}
