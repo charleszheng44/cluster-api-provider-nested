@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -ue
+
+create_crd() {
+    # create the ncp 
+    kubectl apply -f samples/ncp.yaml
+    
+    # get the ncp uid
+    ncp_uid=$(kubectl get ncp ncp -o yaml | grep uid | awk '{print $2}')
+    
+    cat samples/netcd.yaml | sed "s/__ncp__uid__/$ncp_uid/g" | kubectl apply -f-
+    
+    cat samples/nkas.yaml | sed "s/__ncp__uid__/$ncp_uid/g" | kubectl apply -f-
+  
+    cat samples/nkcm.yaml | sed "s/__ncp__uid__/$ncp_uid/g" | kubectl apply -f-
+}
+
+usage() {
+cat <<EOF
+create-crd -a <del/crt>
+EOF
+}
+
+while getopts ":ha:" opt; do
+    case $opt in
+        h)
+            usage
+            ;;
+        a)
+            action=$OPTARG
+            case $action in 
+                del)
+                    kubectl delete -f samples/
+                    ;;
+                crt)
+                    create_crd
+                    ;;
+                *)
+                    echo "unrecognized option"
+                    usage
+                    ;;
+            esac
+            ;; 
+        *)
+            usage
+            ;;
+    esac
+done

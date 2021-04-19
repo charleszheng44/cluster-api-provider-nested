@@ -1,0 +1,12 @@
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha4
+kind: NestedControllerManager
+metadata:
+  name: nkcm 
+  namespace: default
+  ownerReferences:
+  - apiVersion: controlplane.cluster.x-k8s.io/v1alpha4
+    kind: NestedControlPlane
+    name: ncp
+    uid: __ncp__uid__
+spec:
+  replicas: 1 

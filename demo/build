@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -xeu
+
+CAPN_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+LOCAL_DIR=$CAPN_ROOT/local
+BIN_DIR=$CAPN_ROOT/bin
+cd $CAPN_ROOT
+make manager
+cp $BIN_DIR/manager $LOCAL_DIR/manager
+cd $LOCAL_DIR
+docker build -t chaozheng/capn-manager .

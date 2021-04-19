@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capn-manager 
+  namespace: kube-system
+  labels:
+    control-plane: capn-manager
+spec:
+  selector:
+    matchLabels:
+      control-plane: capn-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: capn-manager
+    spec:
+      containers:
+      - command:
+        - manager
+        args:
+        - --v=5
+        image: chaozheng/capn-manager
+        imagePullPolicy: Always
+        name: manager
+        # resources:
+        #   limits:
+        #     cpu: 100m
+        #     memory: 30Mi
+        #   requests:
+        #     cpu: 100m
+        #     memory: 20Mi
+      terminationGracePeriodSeconds: 10

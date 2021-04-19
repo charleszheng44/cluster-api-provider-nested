@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+
+set -xue
+
+# 1. generate the CA
+PKI_DIR=pki
+
+gen_ca() {
+cat > $PKI_DIR/ca-config.json <<EOF
+    {
+      "signing": {
+        "default": {
+          "expiry": "8760h"
+        },
+        "profiles": {
+          "kubernetes": {
+            "usages": ["signing", "key encipherment", "server auth", "client auth"],
+            "expiry": "8760h"
+          }
+        }
+      }
+    }
+EOF
+    
+cat > $PKI_DIR/ca-csr.json <<EOF
+    {
+      "CN": "Kubernetes",
+      "key": {
+        "algo": "rsa",
+        "size": 2048
+      },
+      "names": [
+        {
+          "C": "US",
+          "L": "Portland",
+          "O": "Kubernetes",
+          "OU": "CA",
+          "ST": "Oregon"
+        }
+      ]
+    }
+EOF
+    
+    cfssl gencert -initca $PKI_DIR/ca-csr.json | cfssljson -bare $PKI_DIR/ca
+}
+
+# 2. create secrets to hold the CA 
+create_ca_srt() {
+    kubectl create secret tls ncp-ca \
+        --cert=$PKI_DIR/ca.pem \
+        --key=$PKI_DIR/ca-key.pem
+}
+
+# 3. generate the kubernetes PKI, which will be used by APIServer and Etcd
+gen_k8s_cert() {
+    
+KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local,nkas,netcd,netcd-0.netcd
+
+cat > $PKI_DIR/kubernetes-csr.json <<EOF
+{
+  "CN": "kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=$PKI_DIR/ca.pem \
+  -ca-key=$PKI_DIR/ca-key.pem \
+  -config=$PKI_DIR/ca-config.json \
+  -hostname=127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -profile=kubernetes \
+  $PKI_DIR/kubernetes-csr.json | cfssljson -bare $PKI_DIR/kubernetes
+
+}
+
+# generates the service account certificates
+gen_k8s_sa() {
+
+cat > $PKI_DIR/service-account-csr.json <<EOF
+{
+  "CN": "service-accounts",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=$PKI_DIR/ca.pem \
+  -ca-key=$PKI_DIR/ca-key.pem \
+  -config=$PKI_DIR/ca-config.json \
+  -profile=kubernetes \
+  $PKI_DIR/service-account-csr.json | cfssljson -bare $PKI_DIR/service-account
+
+}
+
+gen_kcm_cert() {
+cat > $PKI_DIR/kube-controller-manager-csr.json <<EOF
+{
+  "CN": "system:kube-controller-manager",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "system:kube-controller-manager",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+    cfssl gencert \
+      -ca=$PKI_DIR/ca.pem \
+      -ca-key=$PKI_DIR/ca-key.pem \
+      -config=$PKI_DIR/ca-config.json \
+      -profile=kubernetes \
+      $PKI_DIR/kube-controller-manager-csr.json | cfssljson -bare $PKI_DIR/kube-controller-manager
+
+}
+
+gen_kcm_kubeconfig() {
+    kubectl config set-cluster kubernetes-the-hard-way \
+      --certificate-authority=$PKI_DIR/ca.pem \
+      --embed-certs=true \
+      --server=https://nkas:6443 \
+      --kubeconfig=$PKI_DIR/kube-controller-manager.kubeconfig
+    
+    kubectl config set-credentials system:kube-controller-manager \
+      --client-certificate=$PKI_DIR/kube-controller-manager.pem \
+      --client-key=$PKI_DIR/kube-controller-manager-key.pem \
+      --embed-certs=true \
+      --kubeconfig=$PKI_DIR/kube-controller-manager.kubeconfig
+    
+    kubectl config set-context default \
+      --cluster=kubernetes-the-hard-way \
+      --user=system:kube-controller-manager \
+      --kubeconfig=$PKI_DIR/kube-controller-manager.kubeconfig
+    
+    kubectl config use-context default --kubeconfig=$PKI_DIR/kube-controller-manager.kubeconfig
+}
+
+gen_kcm_kubeconfig_srt() {
+    kubectl create secret generic nkcm-kubeconfig \
+        --from-file=controller-manager-kubeconfig=$PKI_DIR/kube-controller-manager.kubeconfig
+}
+
+# 4. create secrets to hold the etcd cert/key
+create_etcd_cert_srt() {
+    kubectl create secret tls ncp-etcd \
+        --cert=$PKI_DIR/kubernetes.pem \
+        --key=$PKI_DIR/kubernetes-key.pem
+}
+
+# 5. create secrets to hold the apiserver cert/key
+create_apiserver_cert_srt() {
+    kubectl create secret tls ncp-apiserver \
+        --cert=$PKI_DIR/kubernetes.pem \
+        --key=$PKI_DIR/kubernetes-key.pem
+}
+
+# 6. create service account secret for the apiserver
+create_apiserver_sa_srt() {
+    kubectl create secret tls ncp-sa \
+        --cert=$PKI_DIR/service-account.pem \
+        --key=$PKI_DIR/service-account-key.pem
+}
+
+
+# remove the old PKI directory
+[ -a $PKI_DIR ] && rm -Rf $PKI_DIR 
+mkdir pki
+gen_ca
+gen_k8s_cert
+gen_k8s_sa
+gen_kcm_cert
+gen_kcm_kubeconfig
+create_ca_srt
+create_etcd_cert_srt
+create_apiserver_cert_srt
+create_apiserver_sa_srt
+gen_kcm_kubeconfig_srt
+
+

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# create crd
+kubectl apply -f crd
+
+# deploy the manager
+kubectl apply -f manager.yaml
+
+# generate pki
+./gen-pki-srt
+
+# create cr
+./create-crd -a crt
+
+# polling the nc state
+while true; do
+    sts=$(kubectl get nkas nkas | awk 'NR>1{print $2}')
+    if [ "$sts" == "Ready" ]; then
+        echo "the apiserver is ready"
+        break
+    else
+        echo "the apiserver is not ready, will sleep for 5 seconds"
+        sleep 5
+    fi
+done
+
+# generate the kubeconfig for the ncp
+./gen-kubeconfig > ncp.kubeconfig
